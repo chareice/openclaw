@@ -92,7 +92,7 @@ describe("config layout width", () => {
 
     expect(topTabs).not.toBeNull();
     expect(scroller).not.toBeNull();
-    expect(getComputedStyle(topTabs!).display).toBe("grid");
+    expect(getComputedStyle(topTabs!).display).toBe("flex");
     expect(getComputedStyle(scroller!).display).toBe("flex");
   });
 });

@@ -1839,7 +1839,8 @@
   background: var(--card);
   color: var(--text);
   cursor: pointer;
-  transition: background var(--duration-fast) ease,
+  transition:
+    background var(--duration-fast) ease,
     border-color var(--duration-fast) ease;
 }
 
@@ -1869,7 +1870,8 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background var(--duration-fast) ease,
+  transition:
+    background var(--duration-fast) ease,
     color var(--duration-fast) ease,
     border-color var(--duration-fast) ease;
 }
@@ -3038,6 +3040,27 @@
 .agent-model-fields {
   display: grid;
   gap: 10px;
+}
+
+.workspace-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 2px 0;
+  cursor: pointer;
+  word-break: break-all;
+  text-align: left;
+  transition: opacity var(--duration-fast) ease;
+}
+
+.workspace-link:hover {
+  opacity: 0.75;
+  text-decoration: underline;
 }
 
 .agent-model-actions {
