@@ -256,6 +256,7 @@ describe("matrix monitor handler pairing account scope", () => {
   it("skips media downloads for unmentioned group media messages", async () => {
     const downloadContent = vi.fn(async () => Buffer.from("image"));
     const getMemberDisplayName = vi.fn(async () => "sender");
+    const getRoomInfo = vi.fn(async () => ({ altAliases: [] }));
     const { handler, resolveAgentRoute } = createMatrixHandlerTestHarness({
       client: {
         downloadContent,
@@ -263,6 +264,7 @@ describe("matrix monitor handler pairing account scope", () => {
       isDirectMessage: false,
       mentionRegexes: [/@bot/i],
       getMemberDisplayName,
+      getRoomInfo,
     });
 
     await handler("!room:example.org", {
@@ -283,6 +285,7 @@ describe("matrix monitor handler pairing account scope", () => {
 
     expect(downloadContent).not.toHaveBeenCalled();
     expect(getMemberDisplayName).not.toHaveBeenCalled();
+    expect(getRoomInfo).not.toHaveBeenCalled();
     expect(resolveAgentRoute).not.toHaveBeenCalled();
   });
 
@@ -307,6 +310,7 @@ describe("matrix monitor handler pairing account scope", () => {
       prevBatch: null,
     }));
     const getMemberDisplayName = vi.fn(async () => "sender");
+    const getRoomInfo = vi.fn(async () => ({ altAliases: [] }));
     const { handler, resolveAgentRoute } = createMatrixHandlerTestHarness({
       client: {
         getEvent,
@@ -315,6 +319,7 @@ describe("matrix monitor handler pairing account scope", () => {
       isDirectMessage: false,
       mentionRegexes: [/@bot/i],
       getMemberDisplayName,
+      getRoomInfo,
     });
 
     await handler("!room:example.org", {
@@ -336,6 +341,7 @@ describe("matrix monitor handler pairing account scope", () => {
     expect(getEvent).not.toHaveBeenCalled();
     expect(getRelations).not.toHaveBeenCalled();
     expect(getMemberDisplayName).not.toHaveBeenCalled();
+    expect(getRoomInfo).not.toHaveBeenCalled();
     expect(resolveAgentRoute).not.toHaveBeenCalled();
   });
 
@@ -378,6 +384,38 @@ describe("matrix monitor handler pairing account scope", () => {
     expect(recordInboundSession).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionKey: "agent:ops:main",
+      }),
+    );
+  });
+
+  it("uses stable room ids instead of room-declared aliases in group context", async () => {
+    const { handler, finalizeInboundContext } = createMatrixHandlerTestHarness({
+      isDirectMessage: false,
+      getRoomInfo: async () => ({
+        name: "Ops Room",
+        canonicalAlias: "#spoofed:example.org",
+        altAliases: ["#alt:example.org"],
+      }),
+      getMemberDisplayName: async () => "sender",
+      dispatchReplyFromConfig: async () => ({
+        queuedFinal: false,
+        counts: { final: 0, block: 0, tool: 0 },
+      }),
+    });
+
+    await handler(
+      "!room:example.org",
+      createMatrixTextMessageEvent({
+        eventId: "$group1",
+        body: "@room hello",
+        mentions: { room: true },
+      }),
+    );
+
+    expect(finalizeInboundContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        GroupSubject: "Ops Room",
+        GroupChannel: "!room:example.org",
       }),
     );
   });
