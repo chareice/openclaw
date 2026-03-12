@@ -211,7 +211,7 @@ export function resolveMatrixMigrationAccountTarget(params: {
     userId,
     accessToken,
     rootDir,
-    storedDeviceId: stored?.deviceId ?? null,
+    storedDeviceId: matchingStored?.deviceId ?? null,
   };
 }
 
