@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk/account-id";
 import {
+  requiresExplicitMatrixDefaultAccount,
+  resolveMatrixDefaultOrOnlyAccountId,
   resolveMatrixCredentialsDir as resolveSharedMatrixCredentialsDir,
   resolveMatrixCredentialsPath as resolveSharedMatrixCredentialsPath,
   writeJsonFileAtomically,
@@ -26,12 +28,23 @@ function resolveLegacyMatrixCredentialsPath(env: NodeJS.ProcessEnv): string | nu
   return path.join(resolveMatrixCredentialsDir(env), "credentials.json");
 }
 
+function shouldReadLegacyCredentialsForAccount(accountId?: string | null): boolean {
+  const normalizedAccountId = normalizeAccountId(accountId);
+  const cfg = getMatrixRuntime().config.loadConfig();
+  if (!cfg.channels?.matrix || typeof cfg.channels.matrix !== "object") {
+    return normalizedAccountId === DEFAULT_ACCOUNT_ID;
+  }
+  if (requiresExplicitMatrixDefaultAccount(cfg)) {
+    return false;
+  }
+  return normalizeAccountId(resolveMatrixDefaultOrOnlyAccountId(cfg)) === normalizedAccountId;
+}
+
 function resolveLegacyMigrationSourcePath(
   env: NodeJS.ProcessEnv,
   accountId?: string | null,
 ): string | null {
-  const normalized = normalizeAccountId(accountId);
-  if (normalized === DEFAULT_ACCOUNT_ID) {
+  if (!shouldReadLegacyCredentialsForAccount(accountId)) {
     return null;
   }
   const legacyPath = resolveLegacyMatrixCredentialsPath(env);

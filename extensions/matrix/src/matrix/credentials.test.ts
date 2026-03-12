@@ -21,10 +21,19 @@ describe("matrix credentials storage", () => {
     }
   });
 
-  function setupStateDir(): string {
+  function setupStateDir(
+    cfg: Record<string, unknown> = {
+      channels: {
+        matrix: {},
+      },
+    },
+  ): string {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-matrix-creds-"));
     tempDirs.push(dir);
     setMatrixRuntime({
+      config: {
+        loadConfig: () => cfg,
+      },
       state: {
         resolveStateDir: () => dir,
       },
@@ -82,7 +91,15 @@ describe("matrix credentials storage", () => {
   });
 
   it("migrates legacy matrix credential files on read", async () => {
-    const stateDir = setupStateDir();
+    const stateDir = setupStateDir({
+      channels: {
+        matrix: {
+          accounts: {
+            ops: {},
+          },
+        },
+      },
+    });
     const legacyPath = path.join(stateDir, "credentials", "matrix", "credentials.json");
     const currentPath = resolveMatrixCredentialsPath({}, "ops");
     fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
@@ -103,8 +120,51 @@ describe("matrix credentials storage", () => {
     expect(fs.existsSync(currentPath)).toBe(true);
   });
 
+  it("does not migrate legacy default credentials during a non-selected account read", () => {
+    const stateDir = setupStateDir({
+      channels: {
+        matrix: {
+          defaultAccount: "default",
+          accounts: {
+            default: {
+              homeserver: "https://matrix.default.example.org",
+              accessToken: "default-token",
+            },
+            ops: {},
+          },
+        },
+      },
+    });
+    const legacyPath = path.join(stateDir, "credentials", "matrix", "credentials.json");
+    const currentPath = resolveMatrixCredentialsPath({}, "ops");
+    fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
+    fs.writeFileSync(
+      legacyPath,
+      JSON.stringify({
+        homeserver: "https://matrix.default.example.org",
+        userId: "@default:example.org",
+        accessToken: "default-token",
+        createdAt: "2026-03-01T10:00:00.000Z",
+      }),
+    );
+
+    const loaded = loadMatrixCredentials({}, "ops");
+
+    expect(loaded).toBeNull();
+    expect(fs.existsSync(legacyPath)).toBe(true);
+    expect(fs.existsSync(currentPath)).toBe(false);
+  });
+
   it("clears both current and legacy credential paths", () => {
-    const stateDir = setupStateDir();
+    const stateDir = setupStateDir({
+      channels: {
+        matrix: {
+          accounts: {
+            ops: {},
+          },
+        },
+      },
+    });
     const currentPath = resolveMatrixCredentialsPath({}, "ops");
     const legacyPath = path.join(stateDir, "credentials", "matrix", "credentials.json");
     fs.mkdirSync(path.dirname(currentPath), { recursive: true });
