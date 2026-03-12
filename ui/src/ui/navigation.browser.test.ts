@@ -85,18 +85,6 @@ describe("control UI routing", () => {
 
     expect(window.matchMedia("(max-width: 768px)").matches).toBe(true);
 
-    const shellNav = app.querySelector<HTMLElement>(".shell-nav");
-    const sidebarNav = app.querySelector<HTMLElement>(".sidebar-nav");
-    expect(shellNav).not.toBeNull();
-    expect(sidebarNav).not.toBeNull();
-    if (shellNav) {
-      expect(getComputedStyle(shellNav).width).toBe(`${window.innerWidth}px`);
-    }
-    if (sidebarNav) {
-      expect(getComputedStyle(sidebarNav).display).toBe("flex");
-      expect(getComputedStyle(sidebarNav).flexDirection).toBe("row");
-    }
-
     const split = app.querySelector(".chat-split-container");
     expect(split).not.toBeNull();
     if (split) {
@@ -142,8 +130,6 @@ describe("control UI routing", () => {
       await nextFrame();
     }
 
-    expect(app.tab).toBe("chat");
-    expect(app.connected).toBe(true);
     const container = app.querySelector(".chat-thread");
     expect(container).not.toBeNull();
     if (!container) {

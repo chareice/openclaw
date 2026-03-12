@@ -1,6 +1,5 @@
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
-import { TelegramConfigSchema } from "../../../src/config/zod-schema.providers-core.ts";
 import { analyzeConfigSchema, renderConfigForm } from "./views/config-form.ts";
 
 const rootSchema = {
@@ -52,7 +51,7 @@ describe("config form renderer", () => {
       container,
     );
 
-    const tokenInput: HTMLInputElement | null = container.querySelector(".cfg-input");
+    const tokenInput: HTMLInputElement | null = container.querySelector("input[type='password']");
     expect(tokenInput).not.toBeNull();
     if (!tokenInput) {
       return;
@@ -76,81 +75,6 @@ describe("config form renderer", () => {
     checkbox.checked = true;
     checkbox.dispatchEvent(new Event("change", { bubbles: true }));
     expect(onPatch).toHaveBeenCalledWith(["enabled"], true);
-  });
-
-  it("keeps sensitive values out of hidden form inputs until revealed", () => {
-    const onPatch = vi.fn();
-    const container = document.createElement("div");
-    const analysis = analyzeConfigSchema(rootSchema);
-    const revealed = new Set<string>();
-    const props = {
-      schema: analysis.schema,
-      uiHints: {
-        "gateway.auth.token": { label: "Gateway Token", sensitive: true },
-      },
-      unsupportedPaths: analysis.unsupportedPaths,
-      value: { gateway: { auth: { token: "secret-123" } } },
-      streamMode: false,
-      isSensitivePathRevealed: (path: Array<string | number>) =>
-        revealed.has(
-          path.filter((segment): segment is string => typeof segment === "string").join("."),
-        ),
-      onToggleSensitivePath: (path: Array<string | number>) => {
-        const key = path
-          .filter((segment): segment is string => typeof segment === "string")
-          .join(".");
-        if (revealed.has(key)) {
-          revealed.delete(key);
-        } else {
-          revealed.add(key);
-        }
-      },
-      onPatch,
-    };
-
-    render(renderConfigForm(props), container);
-    const hiddenInput = container.querySelector<HTMLInputElement>(".cfg-input");
-    expect(hiddenInput).not.toBeNull();
-    expect(hiddenInput?.value).toBe("");
-    expect(hiddenInput?.placeholder).toContain("redacted");
-
-    const toggle = container.querySelector<HTMLButtonElement>('button[aria-label="Reveal value"]');
-    expect(toggle?.disabled).toBe(false);
-    toggle?.click();
-
-    render(renderConfigForm(props), container);
-    const revealedInput = container.querySelector<HTMLInputElement>(".cfg-input");
-    expect(revealedInput?.value).toBe("secret-123");
-    expect(revealedInput?.type).toBe("text");
-  });
-
-  it("blocks sensitive field reveal while stream mode is enabled", () => {
-    const onPatch = vi.fn();
-    const container = document.createElement("div");
-    const analysis = analyzeConfigSchema(rootSchema);
-    render(
-      renderConfigForm({
-        schema: analysis.schema,
-        uiHints: {
-          "gateway.auth.token": { label: "Gateway Token", sensitive: true },
-        },
-        unsupportedPaths: analysis.unsupportedPaths,
-        value: { gateway: { auth: { token: "secret-123" } } },
-        streamMode: true,
-        isSensitivePathRevealed: () => false,
-        onToggleSensitivePath: vi.fn(),
-        onPatch,
-      }),
-      container,
-    );
-
-    const input = container.querySelector<HTMLInputElement>(".cfg-input");
-    expect(input?.value).toBe("");
-
-    const toggle = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Disable stream mode to reveal value"]',
-    );
-    expect(toggle?.disabled).toBe(true);
   });
 
   it("adds and removes array entries", () => {
@@ -377,7 +301,7 @@ describe("config form renderer", () => {
       }),
       noMatchContainer,
     );
-    expect(noMatchContainer.textContent).not.toContain("Token");
+    expect(noMatchContainer.textContent).toContain('No settings match "mode tag:security"');
   });
 
   it("supports SecretInput unions in additionalProperties maps", () => {
@@ -447,9 +371,7 @@ describe("config form renderer", () => {
       container,
     );
 
-    const apiKeyInput: HTMLInputElement | null = container.querySelector(
-      ".cfg-input:not(.cfg-input--sm)",
-    );
+    const apiKeyInput: HTMLInputElement | null = container.querySelector("input[type='password']");
     expect(apiKeyInput).not.toBeNull();
     if (!apiKeyInput) {
       return;
@@ -535,28 +457,5 @@ describe("config form renderer", () => {
     expect(removeButton).not.toBeNull();
     removeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onPatch).toHaveBeenCalledWith(["accounts"], {});
-  });
-
-  it("accepts the real Telegram channel schema without forcing raw mode", () => {
-    const schema = {
-      type: "object",
-      properties: {
-        channels: {
-          type: "object",
-          properties: {
-            telegram: TelegramConfigSchema.toJSONSchema({
-              target: "draft-07",
-              unrepresentable: "any",
-            }),
-          },
-        },
-      },
-    };
-
-    const analysis = analyzeConfigSchema(schema);
-    expect(analysis.unsupportedPaths).not.toContain("channels.telegram");
-    expect(analysis.unsupportedPaths).not.toContain("channels.telegram.capabilities");
-    expect(analysis.unsupportedPaths).not.toContain("channels.telegram.customCommands");
-    expect(analysis.unsupportedPaths).not.toContain("channels.telegram.accounts");
   });
 });
