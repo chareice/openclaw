@@ -1403,7 +1403,7 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
     }
 
     // Apply search filter if active
-    if (searchOpen && searchQuery.trim() && !messageMatchesSearchQuery(msg, searchQuery)) {
+    if (vs.searchOpen && vs.searchQuery.trim() && !messageMatchesSearchQuery(msg, vs.searchQuery)) {
       continue;
     }
 
