@@ -174,16 +174,7 @@ export function renderMessageGroup(
           <span class="chat-group-timestamp">${timestamp}</span>
           ${renderMessageMeta(meta)}
           ${normalizedRole === "assistant" && isTtsSupported() ? renderTtsButton(group) : nothing}
-          ${
-            opts.onDelete
-              ? html`<button
-                class="chat-group-delete"
-                @click=${opts.onDelete}
-                title="Delete"
-                aria-label="Delete message"
-              >${icons.x}</button>`
-              : nothing
-          }
+          ${opts.onDelete ? renderDeleteButton(opts.onDelete) : nothing}
         </div>
       </div>
     </div>
@@ -317,6 +308,79 @@ function extractGroupText(group: MessageGroup): string {
     }
   }
   return parts.join("\n\n");
+}
+
+const SKIP_DELETE_CONFIRM_KEY = "openclaw:skipDeleteConfirm";
+
+function shouldSkipDeleteConfirm(): boolean {
+  try {
+    return localStorage.getItem(SKIP_DELETE_CONFIRM_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function renderDeleteButton(onDelete: () => void) {
+  return html`
+    <span class="chat-delete-wrap">
+      <button
+        class="chat-group-delete"
+        title="Delete"
+        aria-label="Delete message"
+        @click=${(e: Event) => {
+          if (shouldSkipDeleteConfirm()) {
+            onDelete();
+            return;
+          }
+          const btn = e.currentTarget as HTMLElement;
+          const wrap = btn.closest(".chat-delete-wrap") as HTMLElement;
+          const existing = wrap?.querySelector(".chat-delete-confirm");
+          if (existing) {
+            existing.remove();
+            return;
+          }
+          const popover = document.createElement("div");
+          popover.className = "chat-delete-confirm";
+          popover.innerHTML = `
+            <p class="chat-delete-confirm__text">Delete this message?</p>
+            <label class="chat-delete-confirm__remember">
+              <input type="checkbox" class="chat-delete-confirm__check" />
+              <span>Don't ask again</span>
+            </label>
+            <div class="chat-delete-confirm__actions">
+              <button class="chat-delete-confirm__cancel" type="button">Cancel</button>
+              <button class="chat-delete-confirm__yes" type="button">Delete</button>
+            </div>
+          `;
+          wrap.appendChild(popover);
+
+          const cancel = popover.querySelector(".chat-delete-confirm__cancel")!;
+          const yes = popover.querySelector(".chat-delete-confirm__yes")!;
+          const check = popover.querySelector(".chat-delete-confirm__check") as HTMLInputElement;
+
+          cancel.addEventListener("click", () => popover.remove());
+          yes.addEventListener("click", () => {
+            if (check.checked) {
+              try {
+                localStorage.setItem(SKIP_DELETE_CONFIRM_KEY, "1");
+              } catch {}
+            }
+            popover.remove();
+            onDelete();
+          });
+
+          // Close on click outside
+          const closeOnOutside = (evt: MouseEvent) => {
+            if (!popover.contains(evt.target as Node) && evt.target !== btn) {
+              popover.remove();
+              document.removeEventListener("click", closeOnOutside, true);
+            }
+          };
+          requestAnimationFrame(() => document.addEventListener("click", closeOnOutside, true));
+        }}
+      >${icons.trash ?? icons.x}</button>
+    </span>
+  `;
 }
 
 function renderTtsButton(group: MessageGroup) {
