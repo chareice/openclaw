@@ -57,9 +57,47 @@ describe("create_channel tool", () => {
     });
   });
 
+  it("passes category_name through when provided", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        created: true,
+        mode: "created",
+        channel: {
+          id: "channel-1",
+          name: "旅行",
+          category: { id: "category-1", name: "出行" },
+        },
+      }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tool = createChannelTool(fakeApi(), { sessionKey: "agent:test:session-1" });
+    await tool.execute("tool-1", { name: "旅行", category_name: "出行" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:4000/api/internal/openclaw/channels",
+      expect.objectContaining({
+        body: JSON.stringify({
+          session_key: "agent:test:session-1",
+          name: "旅行",
+          icon: undefined,
+          category_name: "出行",
+        }),
+      }),
+    );
+  });
+
   it("requires an active session key", async () => {
     const tool = createChannelTool(fakeApi(), {});
     await expect(tool.execute("tool-1", { name: "旅行" })).rejects.toThrow(/active session/i);
+  });
+
+  it("documents that creation must be user-explicit", () => {
+    const tool = createChannelTool(fakeApi(), { sessionKey: "agent:test:session-1" });
+
+    expect(tool.description).toMatch(/explicitly asks/i);
   });
 
   it("surfaces assistant api errors", async () => {

@@ -7,7 +7,7 @@ import {
   trimTrailingSlash,
 } from "./plugin-config.js";
 
-type ChannelResponse = {
+type OrganizeChannelResponse = {
   channel?: {
     category?: {
       id?: string;
@@ -20,36 +20,33 @@ type ChannelResponse = {
     name?: string;
     primary_thread_id?: string;
   };
-  created?: boolean;
-  mode?: "created" | "existing" | "current";
+  mode?: "current" | "updated";
+  moved?: boolean;
 };
 
-type CreateChannelToolContext = {
+type MoveChannelToCategoryToolContext = {
   sessionKey?: string;
 };
 
-export function createChannelTool(api: OpenClawPluginApi, ctx: CreateChannelToolContext) {
+export function moveChannelToCategoryTool(
+  api: OpenClawPluginApi,
+  ctx: MoveChannelToCategoryToolContext,
+) {
   return {
-    name: "create_channel",
-    label: "Create Channel",
+    name: "move_channel_to_category",
+    label: "Move Channel To Category",
     description:
-      "Create or reuse a named topic channel for the current user and switch the app to it. Only use this when the user explicitly asks to create, open, or split out a separate topic/channel.",
+      "Move an existing topic channel into a category for the current user. Creates the category if needed. Only use this when the user explicitly asks to organize, group, sort, or move a topic.",
     parameters: Type.Object({
-      name: Type.String({
-        description: "Short topic name for the new channel.",
+      category_name: Type.String({
+        description: "The destination category name.",
         minLength: 1,
         maxLength: 40,
       }),
-      icon: Type.Optional(
+      channel_name: Type.Optional(
         Type.String({
-          description: "Optional icon or emoji for the topic channel.",
-          minLength: 1,
-          maxLength: 8,
-        }),
-      ),
-      category_name: Type.Optional(
-        Type.String({
-          description: "Optional category name to place the channel into.",
+          description:
+            "Optional channel name. Omit to move the current channel you are chatting in.",
           minLength: 1,
           maxLength: 40,
         }),
@@ -60,17 +57,16 @@ export function createChannelTool(api: OpenClawPluginApi, ctx: CreateChannelTool
       const sessionKey = normalizeText(ctx.sessionKey);
 
       if (!sessionKey) {
-        throw new Error("create_channel requires an active session");
+        throw new Error("move_channel_to_category requires an active session");
       }
 
-      const name = normalizeText(params.name);
-
-      if (!name) {
-        throw new Error("name required");
-      }
-
-      const icon = normalizeText(params.icon);
       const categoryName = normalizeText(params.category_name);
+
+      if (!categoryName) {
+        throw new Error("category_name required");
+      }
+
+      const channelName = normalizeText(params.channel_name);
       const pluginConfig = readPluginConfig(api);
 
       if (!pluginConfig.assistantApiBaseUrl) {
@@ -82,46 +78,44 @@ export function createChannelTool(api: OpenClawPluginApi, ctx: CreateChannelTool
       }
 
       const timeoutMs = pluginConfig.requestTimeoutMs ?? 10_000;
-      const response = await requestCreateChannel({
+      const response = await requestMoveChannelToCategory({
         assistantApiBaseUrl: pluginConfig.assistantApiBaseUrl,
         assistantApiToken: pluginConfig.assistantApiToken,
-        sessionKey,
-        name,
-        icon,
         categoryName,
+        channelName,
+        sessionKey,
         timeoutMs,
       });
 
-      const channelName = response.channel?.name ?? name;
-      const text =
-        response.mode === "existing" || response.mode === "current"
-          ? `已切换到主题「${channelName}」。`
-          : `已创建主题「${channelName}」，并切换过去。`;
+      const resolvedChannelName = response.channel?.name ?? channelName ?? "当前主题";
+      const resolvedCategoryName = response.channel?.category?.name ?? categoryName;
+      const text = response.moved
+        ? `已把「${resolvedChannelName}」整理到「${resolvedCategoryName}」分类。`
+        : `「${resolvedChannelName}」已经在「${resolvedCategoryName}」分类里了。`;
 
       return {
         content: [{ type: "text", text }],
         details: {
-          channel: response.channel,
           category: response.channel?.category,
-          created: response.created ?? false,
-          mode: response.mode ?? (response.created ? "created" : "existing"),
+          channel: response.channel,
+          mode: response.mode ?? (response.moved ? "updated" : "current"),
+          moved: response.moved ?? false,
         },
       };
     },
   };
 }
 
-async function requestCreateChannel(params: {
+async function requestMoveChannelToCategory(params: {
   assistantApiBaseUrl: string;
   assistantApiToken: string;
+  categoryName: string;
+  channelName?: string;
   sessionKey: string;
-  name: string;
-  icon?: string;
-  categoryName?: string;
   timeoutMs: number;
-}): Promise<ChannelResponse> {
+}): Promise<OrganizeChannelResponse> {
   const response = await fetch(
-    `${trimTrailingSlash(params.assistantApiBaseUrl)}/api/internal/openclaw/channels`,
+    `${trimTrailingSlash(params.assistantApiBaseUrl)}/api/internal/openclaw/channels/organize`,
     {
       method: "POST",
       headers: {
@@ -130,8 +124,7 @@ async function requestCreateChannel(params: {
       },
       body: JSON.stringify({
         session_key: params.sessionKey,
-        name: params.name,
-        icon: params.icon,
+        channel_name: params.channelName,
         category_name: params.categoryName,
       }),
       signal: resolveTimeoutSignal(params.timeoutMs),
@@ -151,5 +144,5 @@ async function requestCreateChannel(params: {
     throw new Error(message);
   }
 
-  return payload as ChannelResponse;
+  return payload as OrganizeChannelResponse;
 }
